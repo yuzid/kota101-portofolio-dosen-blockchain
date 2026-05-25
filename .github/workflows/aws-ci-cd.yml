@@ -1,0 +1,71 @@
+name: Deploy to AWS ECS
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: us-east-1                  # Sesuaikan dengan region AWS Anda
+  ECR_REPOSITORY_SERVER: portfolio-server
+  ECR_REPOSITORY_CLIENT: portfolio-client
+  ECS_SERVICE: portfolio-service
+  ECS_CLUSTER: portfolio-cluster
+  ECS_TASK_DEFINITION: .aws/task-definition.json 
+
+jobs:
+  deploy:
+    name: Build & Deploy to AWS
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    # ---- BUILD & PUSH BACKEND SERVER ----
+    - name: Build, Tag, and Push Server Image to Amazon ECR
+      id: build-image-server
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY_SERVER }}:$IMAGE_TAG ./server
+        docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY_SERVER }}:$IMAGE_TAG
+        echo "server_image=$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SERVER }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    # ---- BUILD & PUSH FRONTEND CLIENT ----
+    - name: Build, Tag, and Push Client Image to Amazon ECR
+      id: build-image-client
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY_CLIENT }}:$IMAGE_TAG ./client
+        docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY_CLIENT }}:$IMAGE_TAG
+
+    # ---- DEPLOY TO AMAZON ECS ----
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: ${{ env.ECS_TASK_DEFINITION }}
+        container-name: portfolio-server-container
+        image: ${{ steps.build-image-server.outputs.server_image }}
+
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
