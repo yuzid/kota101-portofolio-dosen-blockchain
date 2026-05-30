@@ -6,10 +6,10 @@ on:
 
 env:
   AWS_REGION: ap-southeast-1                  # Sesuaikan dengan region AWS Anda
-  ECR_REPOSITORY_SERVER: portfolio-server
-  ECR_REPOSITORY_CLIENT: portfolio-client
-  ECS_SERVICE: portfolio-service
-  ECS_CLUSTER: portfolio-cluster
+  ECR_REPOSITORY_SERVER: portofolio-server
+  ECR_REPOSITORY_CLIENT: portofolio-client
+  ECS_SERVICE: portofolio-service
+  ECS_CLUSTER: portofolio-cluster
   ECS_TASK_DEFINITION: .aws/task-definition.json 
 
 jobs:
