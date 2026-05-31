@@ -9,7 +9,7 @@ env:
   AWS_REGION: ap-southeast-1
   ECR_REPOSITORY: portofolio-server
   ECS_CLUSTER: portofolio-cluster
-  ECS_SERVICE: portfolio-monolith-service
+  ECS_SERVICE: portfolio-server-service
   ECS_TASK_DEFINITION_NAME: portfolio-server-task
   CONTAINER_NAME: portfolio-server-container
 
@@ -17,7 +17,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     environment: AWS
-    
+
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
