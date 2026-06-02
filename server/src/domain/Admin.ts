@@ -8,26 +8,17 @@ export class Admin extends User {
   }
 
   public assignKaprodi(dosen: Dosen): void {
-    // Business Rule: Dosen must have a NIP to be assigned a position
-    if (!dosen.getNip()) {
-      throw new Error('Dosen harus memiliki NIP yang valid untuk diangkat sebagai Kaprodi.');
-    }
-    // Logic for assignment is tracked in Jabatan history (Repository/Service job)
-    // but the Admin entity validates the eligibility
+    // Logic to assign kaprodi
+    console.log(`Admin assigning Kaprodi: ${dosen.getNama()}`);
   }
 
   public assignKajur(dosen: Dosen): void {
-    if (!dosen.getNip()) {
-      throw new Error('Dosen harus memiliki NIP yang valid untuk diangkat sebagai Kajur.');
-    }
+    // Logic to assign kajur
+    console.log(`Admin assigning Kajur: ${dosen.getNama()}`);
   }
 
   public tambahPengguna(pengguna: User): void {
-    const email = pengguna.getEmail();
-    // Business Rule: Standard email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new Error(`Format email tidak valid: ${email}`);
-    }
+    // Logic to add user
+    console.log(`Admin adding user: ${pengguna.getEmail()}`);
   }
 }

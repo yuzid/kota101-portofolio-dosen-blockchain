@@ -6,23 +6,18 @@ export abstract class KegiatanTridharma {
   protected tanggalMulaiKegiatan: Date;
   protected tanggalSelesaiKegiatan: Date;
   protected periode: string;
-  protected pencatatId: string;
 
   constructor(
     namaKegiatan: string,
     tanggalMulaiKegiatan: Date,
     tanggalSelesaiKegiatan: Date,
-    periode: string,
-    pencatatId: string
+    periode: string
   ) {
     this.namaKegiatan = namaKegiatan;
     this.tanggalMulaiKegiatan = tanggalMulaiKegiatan;
     this.tanggalSelesaiKegiatan = tanggalSelesaiKegiatan;
     this.periode = periode;
-    this.pencatatId = pencatatId;
   }
-
-  public getPencatatId(): string { return this.pencatatId; }
 
   public validateDates(): void {
     if (this.tanggalMulaiKegiatan >= this.tanggalSelesaiKegiatan) {

@@ -12,10 +12,9 @@ export class KegiatanPendidikan extends KegiatanTridharma {
     tanggalSelesaiKegiatan: Date,
     periode: string,
     kategori: KategoriPendidikan,
-    semester: Semester,
-    pencatatId: string
+    semester: Semester
   ) {
-    super(namaKegiatan, tanggalMulaiKegiatan, tanggalSelesaiKegiatan, periode, pencatatId);
+    super(namaKegiatan, tanggalMulaiKegiatan, tanggalSelesaiKegiatan, periode);
     this.kategori = kategori;
     this.semester = semester;
   }
@@ -29,10 +28,9 @@ export class KegiatanPenelitian extends KegiatanTridharma {
     tanggalMulaiKegiatan: Date,
     tanggalSelesaiKegiatan: Date,
     periode: string,
-    kategori: KategoriPenelitian,
-    pencatatId: string
+    kategori: KategoriPenelitian
   ) {
-    super(namaKegiatan, tanggalMulaiKegiatan, tanggalSelesaiKegiatan, periode, pencatatId);
+    super(namaKegiatan, tanggalMulaiKegiatan, tanggalSelesaiKegiatan, periode);
     this.kategori = kategori;
   }
 }
@@ -45,10 +43,9 @@ export class KegiatanPengabdian extends KegiatanTridharma {
     tanggalMulaiKegiatan: Date,
     tanggalSelesaiKegiatan: Date,
     periode: string,
-    kategori: KategoriPengabdian,
-    pencatatId: string
+    kategori: KategoriPengabdian
   ) {
-    super(namaKegiatan, tanggalMulaiKegiatan, tanggalSelesaiKegiatan, periode, pencatatId);
+    super(namaKegiatan, tanggalMulaiKegiatan, tanggalSelesaiKegiatan, periode);
     this.kategori = kategori;
   }
 }
@@ -58,9 +55,8 @@ export class TugasTambahan extends KegiatanTridharma {
     namaKegiatan: string,
     tanggalMulaiKegiatan: Date,
     tanggalSelesaiKegiatan: Date,
-    periode: string,
-    pencatatId: string
+    periode: string
   ) {
-    super(namaKegiatan, tanggalMulaiKegiatan, tanggalSelesaiKegiatan, periode, pencatatId);
+    super(namaKegiatan, tanggalMulaiKegiatan, tanggalSelesaiKegiatan, periode);
   }
 }
