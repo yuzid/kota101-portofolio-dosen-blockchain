@@ -89,27 +89,8 @@ export class ActivityRepository {
       prisma.kegiatanTridharma.delete({ where: { id } })
     ]);
   }
-async createLampiran(data: any) {
-  return await prisma.lampiranBukti.create({ data });
-}
 
-async findAllByProdi(prodiId: string, filter: any) {
-  return await prisma.kegiatanTridharma.findMany({
-    where: {
-      dosen: { program_studi_id: prodiId },
-      // Apply other filters from filter object
-    },
-    include: { lampiran_bukti: true }
-  });
+  async createLampiran(data: any) {
+    return await prisma.lampiranBukti.create({ data });
+  }
 }
-
-async findAllByJurusan(jurusanId: string, filter: any) {
-  return await prisma.kegiatanTridharma.findMany({
-    where: {
-      dosen: { program_studi: { jurusan_id: jurusanId } },
-    },
-    include: { lampiran_bukti: true }
-  });
-}
-}
-

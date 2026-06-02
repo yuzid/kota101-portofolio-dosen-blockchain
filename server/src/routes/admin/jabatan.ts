@@ -3,13 +3,11 @@ import { asyncHandler } from '../../middleware/authMiddleware';
 import { JabatanController } from '../../controllers/JabatanController';
 import { JabatanService } from '../../services/JabatanService';
 import { JabatanRepository } from '../../repositories/JabatanRepository';
-import { UserRepository } from '../../repositories/UserRepository';
 
 const router = Router();
 
 const jabatanRepository = new JabatanRepository();
-const userRepository = new UserRepository();
-const jabatanService = new JabatanService(jabatanRepository, userRepository);
+const jabatanService = new JabatanService(jabatanRepository);
 const jabatanController = new JabatanController(jabatanService);
 
 // KAJUR

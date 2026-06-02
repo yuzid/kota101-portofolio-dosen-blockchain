@@ -2,9 +2,6 @@ import crypto from 'crypto';
 import { JenisDokumen } from '@prisma/client';
 import { DocumentRepository } from '../repositories/DocumentRepository';
 import { FileStorageService } from './FileStorageService';
-import { UserRepository } from '../repositories/UserRepository';
-import { Dokumen } from '../domain/Dokumen';
-import { SumberDokumen as DomainSumberDokumen } from '../domain/types';
 
 export class DocumentService {
   private documentRepository: DocumentRepository;
@@ -92,32 +89,15 @@ export class DocumentService {
     }, [dosenId]);
   }
 
-  async uploadTUDocument(tuId: string, data: any, file: Express.Multer.File, userRepository: UserRepository) {
+  async uploadTUDocument(data: any, file: Express.Multer.File) {
     const { nama, jenis_dokumen, tanggal_upload, dosen_penerima_ids } = data;
     if (!file || !nama || !jenis_dokumen || !tanggal_upload || !dosen_penerima_ids) throw new Error('Data formulir dan file wajib diisi.');
 
     const targetDosenIds: string[] = JSON.parse(dosen_penerima_ids);
     if (targetDosenIds.length === 0) throw new Error('Minimal pilih satu dosen penerima.');
 
-    const tu = await userRepository.findTataUsahaById(tuId);
-    if (!tu) throw new Error('Otentikasi TU tidak valid.');
-
-    const recipients = await userRepository.findDosenByIds(targetDosenIds);
-
     const hashFile = crypto.createHash('sha256').update(file.buffer).digest('hex');
     const filePath = await this.fileStorageService.uploadFile(file, 'documents');
-
-    const domainDoc = new Dokumen(
-      nama,
-      this.mapJenisToEnum(jenis_dokumen) as any,
-      filePath,
-      hashFile,
-      DomainSumberDokumen.TATA_USAHA,
-      new Date(tanggal_upload)
-    );
-
-    // Call domain logic
-    tu.distribusiDokumen(recipients, domainDoc);
 
     return await this.documentRepository.create({
       nama,
