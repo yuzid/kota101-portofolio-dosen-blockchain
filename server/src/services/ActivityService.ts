@@ -107,25 +107,25 @@ export class ActivityService {
 
     // Instantiate domain objects based on category
     let domainActivity;
-    const commonArgs = [
+    const baseArgs: [string, Date, Date, string] = [
       activity.nama_kegiatan,
       activity.tanggal_mulai,
       activity.tanggal_selesai,
       activity.periode
-    ] as [string, Date, Date, string];
+    ];
 
     switch (activity.kategori_tridharma) {
       case KategoriTridharma.PENDIDIKAN:
-        domainActivity = new KegiatanPendidikan(...commonArgs, activity.jenis_kegiatan as any, activity.semester as any);
+        domainActivity = new KegiatanPendidikan(...baseArgs, activity.jenis_kegiatan as any, activity.semester as any, activity.dosen_id);
         break;
       case KategoriTridharma.PENELITIAN:
-        domainActivity = new KegiatanPenelitian(...commonArgs, activity.jenis_kegiatan as any);
+        domainActivity = new KegiatanPenelitian(...baseArgs, activity.jenis_kegiatan as any, activity.dosen_id);
         break;
       case KategoriTridharma.PENGABDIAN:
-        domainActivity = new KegiatanPengabdian(...commonArgs, activity.jenis_kegiatan as any);
+        domainActivity = new KegiatanPengabdian(...baseArgs, activity.jenis_kegiatan as any, activity.dosen_id);
         break;
       default:
-        domainActivity = new TugasTambahan(...commonArgs);
+        domainActivity = new TugasTambahan(...baseArgs, activity.dosen_id);
     }
 
     const dosenTerlibatMap = new Map<string, any>();
@@ -206,10 +206,10 @@ export class ActivityService {
         activityData.nama_kegiatan,
         activityData.tanggal_mulai,
         activityData.tanggal_selesai,
-        activityData.periode
+        activityData.periode,
+        dosenId
     );
     tempActivity.validateDates();
-    
 
     const partisipasiData: any[] = [];
     if (anggota_ids && Array.isArray(anggota_ids)) {

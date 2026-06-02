@@ -26,4 +26,5 @@ export class Dokumen {
   }
 
   public getNama(): string { return this.nama; }
+  public getSumber(): SumberDokumen { return this.sumber; }
 }
