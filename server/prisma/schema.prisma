@@ -71,10 +71,12 @@ model Admin {
 }
 
 model TataUsaha {
-  id   String @id @db.Uuid
-  nip  String @unique @db.VarChar(50)
-  nama String @db.VarChar(255)
-  user User   @relation(fields: [id], references: [id], onDelete: Cascade)
+  id         String  @id @db.Uuid
+  nip        String  @unique @db.VarChar(50)
+  nama       String  @db.VarChar(255)
+  jurusan_id String  @db.Uuid
+  user       User    @relation(fields: [id], references: [id], onDelete: Cascade)
+  jurusan    Jurusan @relation(fields: [jurusan_id], references: [id])
 
   @@map("tata_usaha")
 }
@@ -90,9 +92,9 @@ model Dosen {
   jabatan_kajur                  JabatanKajur[]
   jabatan_kaprodi                JabatanKaprodi[]
   kepemilikan_dokumen            KepemilikanDokumen[]
-  dokumen_uploaded               Dokumen[]
   partisipasi_kegiatan_tridharma PartisipasiKegiatanTridharma[]
   kegiatan_tridharma             KegiatanTridharma[]
+  chain_address                  String
 
   @@map("dosen")
 }
@@ -115,7 +117,8 @@ model Jurusan {
   nama_jurusan  String         @db.VarChar(255)
   program_studi ProgramStudi[]
   jabatan_kajur JabatanKajur[]
-
+  tata_usaha    TataUsaha[]    // Tambahkan ini agar sinkron
+  
   @@map("jurusan")
 }
 
@@ -155,14 +158,13 @@ model KepemilikanDokumen {
 
 model Dokumen {
   id                String               @id @default(uuid()) @db.Uuid
-  uploader_dosen_id String               @db.Uuid
   nama              String               @db.VarChar(255)
   jenis_dokumen     JenisDokumen
   file_path         String               @db.VarChar(512)
   hash_file         String               @db.VarChar(255)
   sumber_dokumen    SumberDokumen
   tanggal_upload    DateTime             @db.Date
-  uploader          Dosen                @relation(fields: [uploader_dosen_id], references: [id])
+  deleted_at        DateTime?            @db.Timestamp
   kepemilikan       KepemilikanDokumen[]
   lampiran_bukti    LampiranBukti[]
 
