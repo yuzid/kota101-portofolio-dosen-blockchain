@@ -6,6 +6,9 @@ export interface KegiatanFilter {
   jenis?: KategoriTridharma;
   kategori?: JenisKegiatan;   
   search?: string;
+  prodiId?: string;
+  dosenId?: string;
+  status?: 'lengkap' | 'tidak_lengkap';
 }
 
 export interface PageRequest {

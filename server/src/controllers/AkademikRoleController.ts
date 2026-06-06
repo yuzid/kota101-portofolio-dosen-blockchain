@@ -41,6 +41,9 @@ export class AkademikRoleController {
         jenis: req.query.jenis as any,
         kategori: req.query.kategori as any,
         search: req.query.search as string,
+        prodiId: req.query.prodiId as string,
+        dosenId: req.query.dosenId as string,
+        status: req.query.status as any,
       };
 
       const pageRequest: PageRequest = {
@@ -95,6 +98,79 @@ export class AkademikRoleController {
       const kaprodiService = new Kaprodi(this.activityRepository, jabatan.program_studi_id);
       const result = await kaprodiService.getDaftarKegiatanTridharmaProdi(filter, pageRequest);
 
+      res.status(200).json({ status: 'success', data: result });
+    } catch (error: any) {
+      res.status(500).json({ status: 'error', error: error.message });
+    }
+  };
+
+  getJurusanSummaryStats = async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', error: 'Sesi tidak valid.' });
+        return;
+      }
+
+      const jabatan = await prisma.jabatanKajur.findFirst({
+        where: {
+          dosen_id: userId,
+          periode_mulai: { lte: new Date() },
+          periode_selesai: { gte: new Date() }
+        }
+      });
+
+      if (!jabatan) {
+        res.status(403).json({ status: 'error', error: 'Akses ditolak.' });
+        return;
+      }
+
+      const filter: KegiatanFilter = {
+        tanggalAwal: req.query.tanggalAwal as string,
+        tanggalAkhir: req.query.tanggalAkhir as string,
+        search: req.query.search as string,
+        prodiId: req.query.prodiId as string,
+        dosenId: req.query.dosenId as string,
+        status: req.query.status as any,
+      };
+
+      const result = await this.activityRepository.findJurusanSummaryStats(jabatan.jurusan_id, filter);
+      res.status(200).json({ status: 'success', data: result });
+    } catch (error: any) {
+      res.status(500).json({ status: 'error', error: error.message });
+    }
+  };
+
+  getProdiSummaryStats = async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', error: 'Sesi tidak valid.' });
+        return;
+      }
+
+      const jabatan = await prisma.jabatanKaprodi.findFirst({
+        where: {
+          dosen_id: userId,
+          periode_mulai: { lte: new Date() },
+          periode_selesai: { gte: new Date() }
+        }
+      });
+
+      if (!jabatan) {
+        res.status(403).json({ status: 'error', error: 'Akses ditolak.' });
+        return;
+      }
+
+      const filter: KegiatanFilter = {
+        tanggalAwal: req.query.tanggalAwal as string,
+        tanggalAkhir: req.query.tanggalAkhir as string,
+        search: req.query.search as string,
+        dosenId: req.query.dosenId as string,
+        status: req.query.status as any,
+      };
+
+      const result = await this.activityRepository.findProdiSummaryStats(jabatan.program_studi_id, filter);
       res.status(200).json({ status: 'success', data: result });
     } catch (error: any) {
       res.status(500).json({ status: 'error', error: error.message });

@@ -20,7 +20,7 @@ export class ActivityRepository {
   }
 
   async findByJurusan(jurusanId: string, filter: KegiatanFilter, pageRequest: PageRequest): Promise<PageResponse<KegiatanTridharma>> {
-    const { jenis, kategori, tanggalAwal, tanggalAkhir, search } = filter;
+    const { jenis, kategori, tanggalAwal, tanggalAkhir, search, prodiId, dosenId, status } = filter;
     const { page, size } = pageRequest;
     const skip = (page - 1) * size;
 
@@ -32,8 +32,18 @@ export class ActivityRepository {
       }
     };
 
+    if (prodiId) where.dosen.program_studi_id = prodiId;
+    if (dosenId) where.dosen_id = dosenId;
     if (jenis) where.kategori_tridharma = jenis;
     if (kategori) where.jenis_kegiatan = kategori;
+
+    if (status) {
+      if (status === 'lengkap') {
+        where.lampiran_bukti = { some: {} };
+      } else {
+        where.lampiran_bukti = { none: {} };
+      }
+    }
     
     if (tanggalAwal || tanggalAkhir) {
       where.tanggal_mulai = {};
@@ -133,6 +143,95 @@ export class ActivityRepository {
     return { activities, total_dokumen };
   }
 
+  async findJurusanSummaryStats(jurusanId: string, filter: KegiatanFilter) {
+    const { prodiId, dosenId, tanggalAwal, tanggalAkhir, search, status } = filter;
+    
+    const where: any = {
+      dosen: {
+        program_studi: {
+          jurusan_id: jurusanId
+        }
+      }
+    };
+
+    if (prodiId) where.dosen.program_studi_id = prodiId;
+    if (dosenId) where.dosen_id = dosenId;
+    if (status) {
+      if (status === 'lengkap') {
+        where.lampiran_bukti = { some: {} };
+      } else {
+        where.lampiran_bukti = { none: {} };
+      }
+    }
+    if (tanggalAwal || tanggalAkhir) {
+      where.tanggal_mulai = {};
+      if (tanggalAwal) where.tanggal_mulai.gte = new Date(tanggalAwal);
+      if (tanggalAkhir) where.tanggal_mulai.lte = new Date(tanggalAkhir);
+    }
+    if (search) {
+      where.nama_kegiatan = { contains: search, mode: 'insensitive' };
+    }
+
+    const stats = await prisma.kegiatanTridharma.groupBy({
+      by: ['kategori_tridharma'],
+      where,
+      _count: true
+    });
+
+    const total = await prisma.kegiatanTridharma.count({ where });
+
+    return {
+      semua: total,
+      PENDIDIKAN: stats.find(s => s.kategori_tridharma === 'PENDIDIKAN')?._count || 0,
+      PENELITIAN: stats.find(s => s.kategori_tridharma === 'PENELITIAN')?._count || 0,
+      PENGABDIAN: stats.find(s => s.kategori_tridharma === 'PENGABDIAN')?._count || 0,
+      TUGAS_TAMBAHAN: stats.find(s => s.kategori_tridharma === 'TUGAS_TAMBAHAN')?._count || 0,
+    };
+  }
+
+  async findProdiSummaryStats(prodiId: string, filter: KegiatanFilter) {
+    const { dosenId, tanggalAwal, tanggalAkhir, search, status } = filter;
+    
+    const where: any = {
+      dosen: {
+        program_studi_id: prodiId
+      }
+    };
+
+    if (dosenId) where.dosen_id = dosenId;
+    if (status) {
+      if (status === 'lengkap') {
+        where.lampiran_bukti = { some: {} };
+      } else {
+        where.lampiran_bukti = { none: {} };
+      }
+    }
+    if (tanggalAwal || tanggalAkhir) {
+      where.tanggal_mulai = {};
+      if (tanggalAwal) where.tanggal_mulai.gte = new Date(tanggalAwal);
+      if (tanggalAkhir) where.tanggal_mulai.lte = new Date(tanggalAkhir);
+    }
+    if (search) {
+      where.nama_kegiatan = { contains: search, mode: 'insensitive' };
+    }
+
+    const stats = await prisma.kegiatanTridharma.groupBy({
+      by: ['kategori_tridharma'],
+      where,
+      _count: true
+    });
+
+    const total = await prisma.kegiatanTridharma.count({ where });
+
+    return {
+      semua: total,
+      PENDIDIKAN: stats.find(s => s.kategori_tridharma === 'PENDIDIKAN')?._count || 0,
+      PENELITIAN: stats.find(s => s.kategori_tridharma === 'PENELITIAN')?._count || 0,
+      PENGABDIAN: stats.find(s => s.kategori_tridharma === 'PENGABDIAN')?._count || 0,
+      TUGAS_TAMBAHAN: stats.find(s => s.kategori_tridharma === 'TUGAS_TAMBAHAN')?._count || 0,
+    };
+  }
+
   async findTanpaBukti(dosenId: string) {
     return await prisma.kegiatanTridharma.findMany({
       where: {
@@ -152,7 +251,13 @@ export class ActivityRepository {
         partisipasi: { include: { dosen: true } },
         lampiran_bukti: {
           include: {
-            dokumen: { include: { kepemilikan: true } }
+            dokumen: {
+              include: {
+                kepemilikan: {
+                  include: { highlights: true }
+                }
+              }
+            }
           }
         }
       }
