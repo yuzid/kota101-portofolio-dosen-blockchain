@@ -20,6 +20,20 @@ type MultiChainStream = {
   };
 };
 
+export type MultiChainStreamItem = {
+  txid: string;
+  confirmations: number;
+  blockheight?: number;
+  blocktime?: number;
+  time?: number;
+  publishers: string[];
+  keys: string[];
+  data: {
+    json?: Record<string, unknown>;
+  };
+  valid: boolean;
+};
+
 export class MultiChainService {
   private getConfig(node: BlockchainNode): MultiChainConfig {
     const config = {
@@ -142,5 +156,26 @@ export class MultiChainService {
     }
 
     return txId;
+  }
+
+  async getJsonStreamItems(
+    node: BlockchainNode,
+    key: string,
+    count = 100,
+  ): Promise<MultiChainStreamItem[]> {
+    const streamName = process.env.AUDIT_STREAM_NAME;
+    if (!streamName) {
+      throw new Error('AUDIT_STREAM_NAME belum dikonfigurasi.');
+    }
+
+    const items = await this.callRpc<MultiChainStreamItem[]>(
+      node,
+      'liststreamkeyitems',
+      [streamName, key, true, count, 0],
+    );
+
+    return items
+      .filter((item) => item.valid !== false && item.data?.json)
+      .sort((a, b) => (b.blocktime || b.time || 0) - (a.blocktime || a.time || 0));
   }
 }

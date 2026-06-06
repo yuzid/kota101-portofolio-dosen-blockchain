@@ -13,6 +13,7 @@ const activityController = new ActivityController(activityService);
 router.get('/', asyncHandler(activityController.getAllActivities));
 router.get('/stats/summary', asyncHandler(activityController.getSummaryStats));
 router.get('/filter/tanpa-bukti', asyncHandler(activityController.getTanpaBukti));
+router.get('/:id/audit-trail', asyncHandler(activityController.getAuditTrail));
 router.get('/:id', asyncHandler(activityController.getActivityById));
 router.post('/', asyncHandler(activityController.createActivity));
 router.put('/:id', asyncHandler(activityController.updateActivity));

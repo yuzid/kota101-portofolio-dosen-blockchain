@@ -12,6 +12,66 @@ export class ActivityService {
     this.multiChainService = multiChainService;
   }
 
+  private buildBlockchainPayload(activity: any, eventType: string) {
+    return {
+      event_type: eventType,
+      payload_version: 1,
+      recorded_at: new Date().toISOString(),
+      kegiatan: {
+        id: activity.id,
+        dosen_id: activity.dosen_id,
+        kategori_tridharma: activity.kategori_tridharma,
+        jenis_kegiatan: activity.jenis_kegiatan,
+        nama_kegiatan: activity.nama_kegiatan,
+        tanggal_mulai: activity.tanggal_mulai.toISOString(),
+        tanggal_selesai: activity.tanggal_selesai.toISOString(),
+        periode: activity.periode,
+        semester: activity.semester,
+      },
+      pencatat: {
+        id: activity.dosen.id,
+        nip: activity.dosen.nip,
+        nidn: activity.dosen.nidn,
+        nama: activity.dosen.nama,
+        chain_address: activity.dosen.chain_address,
+        program_studi: {
+          id: activity.dosen.program_studi.id,
+          kode: activity.dosen.program_studi.kode_prodi,
+          nama: activity.dosen.program_studi.nama_prodi,
+        },
+      },
+      partisipasi: activity.partisipasi.map((participant: any) => ({
+        dosen_id: participant.dosen_id,
+        nip: participant.dosen.nip,
+        nidn: participant.dosen.nidn,
+        nama: participant.dosen.nama,
+        peran: participant.peran,
+      })),
+      dokumen_pendukung: activity.lampiran_bukti.map((lampiran: any) => ({
+        dokumen_id: lampiran.dokumen.id,
+        nama: lampiran.dokumen.nama,
+        jenis_dokumen: lampiran.dokumen.jenis_dokumen,
+        sumber_dokumen: lampiran.dokumen.sumber_dokumen,
+        tanggal_upload: lampiran.dokumen.tanggal_upload.toISOString(),
+        hash_file: lampiran.dokumen.hash_file,
+      })),
+    };
+  }
+
+  private async publishActivitySnapshot(activity: any, eventType: string) {
+    if (!activity.dosen.chain_address) {
+      throw new Error('Dosen belum memiliki blockchain address.');
+    }
+
+    const blockchainNode = resolveBlockchainNode(activity.dosen.program_studi);
+    return await this.multiChainService.publishJson(
+      blockchainNode,
+      activity.dosen.chain_address,
+      activity.id,
+      this.buildBlockchainPayload(activity, eventType),
+    );
+  }
+
   isValidUUID(uuid: any): uuid is string {
     if (typeof uuid !== 'string') return false;
     const re = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -143,6 +203,42 @@ export class ActivityService {
     };
   }
 
+  async getAuditTrail(id: string) {
+    if (!this.isValidUUID(id)) throw new Error('Format ID tidak valid.');
+
+    const activity = await this.activityRepository.findById(id);
+    if (!activity) throw new Error('Kegiatan tidak ditemukan.');
+
+    const blockchainNode = resolveBlockchainNode(activity.dosen.program_studi);
+    const items = await this.multiChainService.getJsonStreamItems(blockchainNode, id);
+
+    return items.map((item) => {
+      const payload = item.data.json || {};
+      const pencatat = payload.pencatat as { nama?: string } | undefined;
+      const kegiatan = payload.kegiatan as { nama_kegiatan?: string } | undefined;
+      const documents = Array.isArray(payload.dokumen_pendukung)
+        ? payload.dokumen_pendukung
+        : [];
+
+      return {
+        id: item.txid,
+        txId: item.txid,
+        action: String(payload.event_type || 'KEGIATAN_RECORDED'),
+        actor: pencatat?.nama || item.publishers[0] || 'Unknown',
+        publisher: item.publishers[0] || null,
+        timestamp: String(
+          payload.recorded_at ||
+          new Date((item.blocktime || item.time || 0) * 1000).toISOString(),
+        ),
+        details: kegiatan?.nama_kegiatan || activity.nama_kegiatan,
+        documentCount: documents.length,
+        confirmations: item.confirmations,
+        blockHeight: item.blockheight ?? null,
+        payload,
+      };
+    });
+  }
+
   async createActivity(dosenId: string, data: any) {
     const { 
       namaKegiatan, jenisTridharma, kategori, tanggalMulai, 
@@ -185,61 +281,7 @@ export class ActivityService {
       if (!activity) {
         throw new Error('Kegiatan gagal dimuat setelah dibuat.');
       }
-      if (!activity.dosen.chain_address) {
-        throw new Error('Dosen belum memiliki blockchain address.');
-      }
-
-      const blockchainNode = resolveBlockchainNode(activity.dosen.program_studi);
-      const payload = {
-        event_type: 'KEGIATAN_CREATED',
-        payload_version: 1,
-        recorded_at: new Date().toISOString(),
-        kegiatan: {
-          id: activity.id,
-          dosen_id: activity.dosen_id,
-          kategori_tridharma: activity.kategori_tridharma,
-          jenis_kegiatan: activity.jenis_kegiatan,
-          nama_kegiatan: activity.nama_kegiatan,
-          tanggal_mulai: activity.tanggal_mulai.toISOString(),
-          tanggal_selesai: activity.tanggal_selesai.toISOString(),
-          periode: activity.periode,
-          semester: activity.semester,
-        },
-        pencatat: {
-          id: activity.dosen.id,
-          nip: activity.dosen.nip,
-          nidn: activity.dosen.nidn,
-          nama: activity.dosen.nama,
-          chain_address: activity.dosen.chain_address,
-          program_studi: {
-            id: activity.dosen.program_studi.id,
-            kode: activity.dosen.program_studi.kode_prodi,
-            nama: activity.dosen.program_studi.nama_prodi,
-          },
-        },
-        partisipasi: activity.partisipasi.map((participant) => ({
-          dosen_id: participant.dosen_id,
-          nip: participant.dosen.nip,
-          nidn: participant.dosen.nidn,
-          nama: participant.dosen.nama,
-          peran: participant.peran,
-        })),
-        dokumen_pendukung: activity.lampiran_bukti.map((lampiran) => ({
-          dokumen_id: lampiran.dokumen.id,
-          nama: lampiran.dokumen.nama,
-          jenis_dokumen: lampiran.dokumen.jenis_dokumen,
-          sumber_dokumen: lampiran.dokumen.sumber_dokumen,
-          tanggal_upload: lampiran.dokumen.tanggal_upload.toISOString(),
-          hash_file: lampiran.dokumen.hash_file,
-        })),
-      };
-
-      txId = await this.multiChainService.publishJson(
-        blockchainNode,
-        activity.dosen.chain_address,
-        activity.id,
-        payload,
-      );
+      txId = await this.publishActivitySnapshot(activity, 'KEGIATAN_CREATED');
     } catch (error) {
       await this.activityRepository.delete(createdActivity.id);
       throw error;
@@ -260,7 +302,7 @@ export class ActivityService {
       tanggalMulai, tanggalSelesai, tahunAkademik, semester 
     } = data;
 
-    return await this.activityRepository.update(id, {
+    const updateData = {
       nama_kegiatan: namaKegiatan ? String(namaKegiatan) : undefined,
       kategori_tridharma: jenisTridharma ? this.mapKategoriTridharma(String(jenisTridharma)) : undefined,
       jenis_kegiatan: kategori ? this.mapJenisKegiatan(String(kategori)) : undefined,
@@ -268,7 +310,30 @@ export class ActivityService {
       tanggal_selesai: tanggalSelesai ? new Date(String(tanggalSelesai)) : undefined,
       periode: tahunAkademik ? String(tahunAkademik) : undefined,
       semester: semester ? String(semester).toUpperCase() : undefined,
-    });
+    };
+
+    await this.activityRepository.update(id, updateData);
+
+    let txId: string;
+    try {
+      const updatedActivity = await this.activityRepository.findById(id);
+      if (!updatedActivity) throw new Error('Kegiatan gagal dimuat setelah diperbarui.');
+      txId = await this.publishActivitySnapshot(updatedActivity, 'KEGIATAN_UPDATED');
+    } catch (error) {
+      await this.activityRepository.update(id, {
+        nama_kegiatan: activity.nama_kegiatan,
+        kategori_tridharma: activity.kategori_tridharma,
+        jenis_kegiatan: activity.jenis_kegiatan,
+        tanggal_mulai: activity.tanggal_mulai,
+        tanggal_selesai: activity.tanggal_selesai,
+        periode: activity.periode,
+        semester: activity.semester,
+        tx_id: activity.tx_id,
+      });
+      throw error;
+    }
+
+    return await this.activityRepository.updateTransactionId(id, txId);
   }
 
   async deleteActivity(id: string, dosenId: string) {
@@ -281,16 +346,30 @@ export class ActivityService {
     return await this.activityRepository.delete(id);
   }
 
-  async addLampiran(id: string, dokumen_id: string) {
+  async addLampiran(id: string, dokumen_id: string, dosenId: string) {
     if (!this.isValidUUID(id) || !this.isValidUUID(dokumen_id)) throw new Error('Format ID tidak valid.');
 
     const activity = await this.activityRepository.findById(id);
     if (!activity) throw new Error('Kegiatan tidak ditemukan.');
+    if (activity.dosen_id !== dosenId) throw new Error('Akses ditolak. Anda bukan pencatat kegiatan ini.');
 
-    return await this.activityRepository.createLampiran({
+    const lampiran = await this.activityRepository.createLampiran({
       kegiatan_id: id,
       dokumen_id: String(dokumen_id),
       highlighted: false
     });
+
+    let txId: string;
+    try {
+      const updatedActivity = await this.activityRepository.findById(id);
+      if (!updatedActivity) throw new Error('Kegiatan gagal dimuat setelah dokumen ditambahkan.');
+      txId = await this.publishActivitySnapshot(updatedActivity, 'DOKUMEN_ADDED');
+    } catch (error) {
+      await this.activityRepository.deleteLampiran(lampiran.id);
+      throw error;
+    }
+
+    await this.activityRepository.updateTransactionId(id, txId);
+    return lampiran;
   }
 }

@@ -100,4 +100,8 @@ export class ActivityRepository {
   async createLampiran(data: any) {
     return await prisma.lampiranBukti.create({ data });
   }
+
+  async deleteLampiran(id: string) {
+    return await prisma.lampiranBukti.delete({ where: { id } });
+  }
 }

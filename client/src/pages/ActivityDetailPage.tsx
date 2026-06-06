@@ -78,10 +78,15 @@ interface ActivityDetail {
 
 interface ActivityLog {
   id: string;
+  txId: string;
   action: string;
   actor: string;
+  publisher: string | null;
   timestamp: string;
   details: string;
+  documentCount: number;
+  confirmations: number;
+  blockHeight: number | null;
 }
 
 export function ActivityDetailPage() {
@@ -93,6 +98,9 @@ export function ActivityDetailPage() {
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuditLoading, setIsAuditLoading] = useState(false);
+  const [auditLoaded, setAuditLoaded] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
 
   const token = localStorage.getItem('token');
 
@@ -111,8 +119,6 @@ export function ActivityDetailPage() {
       const result = await response.json();
       if (result.status === 'success') {
         setActivity(result.data);
-        // Backend hasn't implemented logs yet, but we'll leave it empty for now
-        setLogs([]);
       } else {
         toast.error(result.error || 'Gagal mengambil detail kegiatan');
         navigate('/activities');
@@ -121,6 +127,38 @@ export function ActivityDetailPage() {
       toast.error('Terjadi kesalahan koneksi ke server');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchAuditTrail = async () => {
+    if (!id || auditLoaded || isAuditLoading) return;
+
+    setIsAuditLoading(true);
+    setAuditError(null);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/dosen/kegiatan/${id}/audit-trail`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      const result = await response.json();
+
+      if (!response.ok || result.status !== 'success') {
+        throw new Error(result.error || 'Gagal mengambil riwayat blockchain');
+      }
+
+      setLogs(result.data);
+      setAuditLoaded(true);
+    } catch (error) {
+      setAuditError(error instanceof Error ? error.message : 'Gagal mengambil riwayat blockchain');
+    } finally {
+      setIsAuditLoading(false);
+    }
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    if (value === 'riwayat') {
+      void fetchAuditTrail();
     }
   };
 
@@ -283,7 +321,7 @@ export function ActivityDetailPage() {
         </Card>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
             <TabsTrigger value="detail">
               <FileText className="w-4 h-4 mr-2" />
@@ -551,7 +589,20 @@ export function ActivityDetailPage() {
                 <CardTitle>Riwayat Aktivitas</CardTitle>
               </CardHeader>
               <CardContent>
-                {logs.length > 0 ? (
+                {isAuditLoading ? (
+                  <div className="flex items-center justify-center gap-3 py-12 text-muted-foreground">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Mengambil riwayat dari blockchain...</span>
+                  </div>
+                ) : auditError ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+                    <AlertCircle className="w-10 h-10 text-destructive" />
+                    <p className="text-sm text-destructive">{auditError}</p>
+                    <Button variant="outline" onClick={() => void fetchAuditTrail()}>
+                      Coba Lagi
+                    </Button>
+                  </div>
+                ) : logs.length > 0 ? (
                   <div className="border rounded-lg">
                     <Table>
                       <TableHeader>
@@ -559,7 +610,8 @@ export function ActivityDetailPage() {
                           <TableHead>Waktu</TableHead>
                           <TableHead>Aksi</TableHead>
                           <TableHead>Pelaku</TableHead>
-                          <TableHead>Detail</TableHead>
+                          <TableHead>Transaksi</TableHead>
+                          <TableHead>Blok</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -569,11 +621,28 @@ export function ActivityDetailPage() {
                               {format(new Date(log.timestamp), "dd MMM yyyy HH:mm", { locale: localeId })}
                             </TableCell>
                             <TableCell>
-                              <Badge variant="secondary">{log.action}</Badge>
+                              <Badge variant="secondary">
+                                {log.action.replaceAll("_", " ")}
+                              </Badge>
                             </TableCell>
                             <TableCell className="text-sm">{log.actor}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {log.details}
+                            <TableCell>
+                              <div className="space-y-1">
+                                <p className="font-mono text-xs" title={log.txId}>
+                                  {log.txId.slice(0, 12)}...
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {log.documentCount} dokumen pendukung
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1 text-sm">
+                                <p>#{log.blockHeight ?? "-"}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {log.confirmations} konfirmasi
+                                </p>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
