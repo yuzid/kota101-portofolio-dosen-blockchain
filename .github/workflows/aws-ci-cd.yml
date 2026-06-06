@@ -54,6 +54,17 @@ jobs:
         ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
         GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
         CONTAINER: ${{ env.CONTAINER_NAME }}
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+        AUDIT_STREAM_NAME: ${{ secrets.AUDIT_STREAM_NAME }}
+        D3_IP: ${{ secrets.D3_IP }}
+        D4_IP: ${{ secrets.D4_IP }}
+        D3_RPC_PORT: ${{ secrets.D3_RPC_PORT }}
+        D3_RPC_USERNAME: ${{ secrets.D3_RPC_USERNAME }}
+        D3_RPC_PASSWORD: ${{ secrets.D3_RPC_PASSWORD }}
+        D4_RPC_PORT: ${{ secrets.D4_RPC_PORT }}
+        D4_RPC_USERNAME: ${{ secrets.D4_RPC_USERNAME }}
+        D4_RPC_PASSWORD: ${{ secrets.D4_RPC_PASSWORD }}
       run: |
         # 1. Unduh task definition asli dari AWS ECS
         aws ecs describe-task-definition \
@@ -74,7 +85,18 @@ jobs:
               {"name": "ADMIN_EMAIL",      "value": $email},
               {"name": "ADMIN_PASSWORD",   "value": $password},
               {"name": "ADMIN_NAME",       "value": $name},
-              {"name": "GOOGLE_CLIENT_ID", "value": $google_id}
+              {"name": "GOOGLE_CLIENT_ID", "value": $google_id},
+              {"name": "DATABASE_URL", "value": $DATABASE_URL},
+              {"name": "AWS_S3_BUCKET", "value": $AWS_S3_BUCKET},
+              {"name": "AUDIT_STREAM_NAME", "value": $AUDIT_STREAM_NAME},
+              {"name": "D3_IP", "value": $D3_IP},
+              {"name": "D4_IP", "value": $D4_IP},
+              {"name": "D3_RPC_PORT", "value": $D3_RPC_PORT},
+              {"name": "D3_RPC_USERNAME", "value": $D3_RPC_USERNAME},
+              {"name": "D3_RPC_PASSWORD", "value": $D3_RPC_PASSWORD},
+              {"name": "D4_RPC_PORT", "value": $D4_RPC_PORT},
+              {"name": "D4_RPC_USERNAME", "value": $D4_RPC_USERNAME},
+              {"name": "D4_RPC_PASSWORD", "value": $D4_RPC_PASSWORD}
             ])' raw-task-def.json > task-definition.json
 
     - name: Fill in the new image ID in the Amazon ECS task definition

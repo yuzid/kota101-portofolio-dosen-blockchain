@@ -1,6 +1,5 @@
 dokumen
 docker-compose.prod.yml
-.env.example
 docs
 .env
 GEMINI.md
