@@ -8,6 +8,7 @@ import { verifyToken, requireRole, errorHandler } from './middleware/authMiddlew
 import dosenDocumentRoutes from './routes/tatausaha/documentRoutes';
 import dosenDocumentRoutesdosen from './routes/dosen/documentRoutes';
 import dosenActivityRoutes from './routes/dosen/activityRoutes';
+import akademikRoleRoutes from './routes/dosen/akademikRoleRoutes';
 
 
 const app = express();
@@ -26,6 +27,7 @@ app.use('/api/tatausaha/dokumen', verifyToken, requireRole(['tata_usaha']), dose
 
 app.use('/api/dosen/dokumen', verifyToken, requireRole(['dosen']), dosenDocumentRoutesdosen);
 app.use('/api/dosen/kegiatan', verifyToken, requireRole(['dosen']), dosenActivityRoutes);
+app.use('/api/dosen/akademik-role', verifyToken, requireRole(['dosen']), akademikRoleRoutes);
 
 // ── Status ──
 app.get('/api/status', (req: Request, res: Response) => {

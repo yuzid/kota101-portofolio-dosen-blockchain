@@ -1,4 +1,6 @@
 import { prisma } from '../lib/prisma';
+import { KegiatanFilter, PageRequest, PageResponse } from '../types/activity';
+import { KegiatanTridharma } from '@prisma/client';
 
 export class ActivityRepository {
   async findAll(dosenId: string) {
@@ -15,6 +17,104 @@ export class ActivityRepository {
       },
       orderBy: { tanggal_mulai: 'desc' }
     });
+  }
+
+  async findByJurusan(jurusanId: string, filter: KegiatanFilter, pageRequest: PageRequest): Promise<PageResponse<KegiatanTridharma>> {
+    const { jenis, kategori, tanggalAwal, tanggalAkhir, search } = filter;
+    const { page, size } = pageRequest;
+    const skip = (page - 1) * size;
+
+    const where: any = {
+      dosen: {
+        program_studi: {
+          jurusan_id: jurusanId
+        }
+      }
+    };
+
+    if (jenis) where.kategori_tridharma = jenis;
+    if (kategori) where.jenis_kegiatan = kategori;
+    
+    if (tanggalAwal || tanggalAkhir) {
+      where.tanggal_mulai = {};
+      if (tanggalAwal) where.tanggal_mulai.gte = new Date(tanggalAwal);
+      if (tanggalAkhir) where.tanggal_mulai.lte = new Date(tanggalAkhir);
+    }
+
+    if (search) {
+      where.nama_kegiatan = { contains: search, mode: 'insensitive' };
+    }
+
+    const [total, data] = await Promise.all([
+      prisma.kegiatanTridharma.count({ where }),
+      prisma.kegiatanTridharma.findMany({
+        where,
+        include: {
+          dosen: { include: { program_studi: true } },
+          lampiran_bukti: true,
+          partisipasi: { include: { dosen: true } }
+        },
+        orderBy: { tanggal_mulai: 'desc' },
+        skip,
+        take: size
+      })
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      size,
+      totalPages: Math.ceil(total / size)
+    };
+  }
+
+  async findByProdi(prodiId: string, filter: KegiatanFilter, pageRequest: PageRequest): Promise<PageResponse<KegiatanTridharma>> {
+    const { jenis, kategori, tanggalAwal, tanggalAkhir, search } = filter;
+    const { page, size } = pageRequest;
+    const skip = (page - 1) * size;
+
+    const where: any = {
+      dosen: {
+        program_studi_id: prodiId
+      }
+    };
+
+    if (jenis) where.kategori_tridharma = jenis;
+    if (kategori) where.jenis_kegiatan = kategori;
+
+    if (tanggalAwal || tanggalAkhir) {
+      where.tanggal_mulai = {};
+      if (tanggalAwal) where.tanggal_mulai.gte = new Date(tanggalAwal);
+      if (tanggalAkhir) where.tanggal_mulai.lte = new Date(tanggalAkhir);
+    }
+
+    if (search) {
+      where.nama_kegiatan = { contains: search, mode: 'insensitive' };
+    }
+
+    const [total, data] = await Promise.all([
+      prisma.kegiatanTridharma.count({ where }),
+      prisma.kegiatanTridharma.findMany({
+        where,
+        include: {
+          dosen: { include: { program_studi: true } },
+          lampiran_bukti: true,
+          partisipasi: { include: { dosen: true } }
+        },
+        orderBy: { tanggal_mulai: 'desc' },
+        skip,
+        take: size
+      })
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      size,
+      totalPages: Math.ceil(total / size)
+    };
   }
 
   async findSummaryStats(dosenId: string) {
