@@ -82,6 +82,13 @@ export class ActivityRepository {
     });
   }
 
+  async updateTransactionId(id: string, txId: string) {
+    return await prisma.kegiatanTridharma.update({
+      where: { id },
+      data: { tx_id: txId },
+    });
+  }
+
   async delete(id: string) {
     return await prisma.$transaction([
       prisma.partisipasiKegiatanTridharma.deleteMany({ where: { kegiatan_tridharma_id: id } }),
@@ -92,5 +99,9 @@ export class ActivityRepository {
 
   async createLampiran(data: any) {
     return await prisma.lampiranBukti.create({ data });
+  }
+
+  async deleteLampiran(id: string) {
+    return await prisma.lampiranBukti.delete({ where: { id } });
   }
 }
