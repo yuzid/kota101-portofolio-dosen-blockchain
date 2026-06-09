@@ -58,6 +58,8 @@ import { id as localeId } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
+import { createKonfirmasi } from "../lib/kegiatanKonfirmasi";
+import { useNotifications } from "../contexts/NotificationContext";
 
 interface Dosen {
   id: string;
@@ -105,6 +107,7 @@ export function ActivityFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { addNotification } = useNotifications();
   const isEdit = Boolean(id);
 
   const [formData, setFormData] = useState({
@@ -119,6 +122,7 @@ export function ActivityFormPage() {
     biaya: "",
   });
 
+  const [jenisBukti, setJenisBukti] = useState<'masing-masing' | 'bersama'>('masing-masing');
   const [anggota, setAnggota] = useState<Dosen[]>([]);
   const [searchAnggota, setSearchAnggota] = useState("");
   const [lampiran, setLampiran] = useState<Document[]>([]);
@@ -280,6 +284,7 @@ export function ActivityFormPage() {
     try {
       const payload = {
         ...formData,
+        jenisBukti,
         anggota_ids: anggota.map(a => a.id),
         lampiran_ids: lampiran.filter(l => l.uploadedBy === user?.id).map(l => l.id)
       };
@@ -299,6 +304,26 @@ export function ActivityFormPage() {
 
       const result = await response.json();
       if (result.status === 'success') {
+        if (!isEdit) {
+          const newId = result.data?.id || id;
+          createKonfirmasi(
+            newId,
+            anggota.map(a => a.id),
+            user?.id || '',
+            user?.name || '',
+            formData.namaKegiatan
+          );
+          if (anggota.length > 0) {
+            addNotification({
+              type: 'member_added',
+              title: 'Undangan Kegiatan Terkirim',
+              description: `Undangan kegiatan "${formData.namaKegiatan}" telah dikirim ke ${anggota.length} dosen.`,
+              actor: user?.name,
+              priority: 'medium',
+              category: 'Kegiatan',
+            });
+          }
+        }
         toast.success(isEdit ? "Kegiatan berhasil diperbarui." : "Kegiatan berhasil dicatat.");
         navigate(isEdit ? `/activities/${id}` : "/activities");
       } else {
@@ -657,10 +682,89 @@ export function ActivityFormPage() {
           </CardContent>
         </Card>
 
-        {/* Section 2: Dosen yang Terlibat */}
+        {/* Section 2: Jenis Bukti Kegiatan */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Jenis Bukti Kegiatan</CardTitle>
+            <CardDescription>
+              Pilih bagaimana dokumen bukti dikelola untuk kegiatan bersama
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setJenisBukti('masing-masing')}
+                className={`relative rounded-lg border-2 p-4 text-left transition-all ${
+                  jenisBukti === 'masing-masing'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-muted hover:border-muted-foreground/30'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    jenisBukti === 'masing-masing' ? 'border-primary' : 'border-muted-foreground'
+                  }`}>
+                    {jenisBukti === 'masing-masing' && (
+                      <div className="w-3 h-3 rounded-full bg-primary" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium">Bukti diunggah masing-masing</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Setiap dosen yang terlibat mengunggah dokumen buktinya sendiri.
+                      Dokumen tidak saling terhubung antar dosen.
+                    </p>
+                    <ul className="text-xs text-muted-foreground mt-2 space-y-1 list-disc list-inside">
+                      <li>Status kelengkapan dihitung per dosen</li>
+                      <li>Dosen lain tidak bisa melihat dokumen pribadi</li>
+                    </ul>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setJenisBukti('bersama')}
+                className={`relative rounded-lg border-2 p-4 text-left transition-all ${
+                  jenisBukti === 'bersama'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-muted hover:border-muted-foreground/30'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    jenisBukti === 'bersama' ? 'border-primary' : 'border-muted-foreground'
+                  }`}>
+                    {jenisBukti === 'bersama' && (
+                      <div className="w-3 h-3 rounded-full bg-primary" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium">Bukti bersama</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Satu dokumen dipakai bersama oleh seluruh dosen yang terlibat.
+                      Cukup satu kali upload oleh pencatat kegiatan.
+                    </p>
+                    <ul className="text-xs text-muted-foreground mt-2 space-y-1 list-disc list-inside">
+                      <li>Dokumen otomatis terhubung ke dosen yang menyetujui</li>
+                      <li>Dosen lain dapat melihat dokumen (read-only)</li>
+                      <li>Hanya uploader yang bisa edit/hapus</li>
+                    </ul>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Section 3: Dosen yang Terlibat */}
         <Card>
           <CardHeader>
             <CardTitle>Dosen yang Terlibat</CardTitle>
+            <CardDescription>
+              Tambahkan dosen lain untuk kegiatan bersama. Dosen yang ditambahkan harus mengonfirmasi keterlibatan mereka.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Current User (Fixed) - Pencatat is also Anggota */}
@@ -726,6 +830,18 @@ export function ActivityFormPage() {
               </div>
             </div>
 
+            {/* Konfirmasi info */}
+            {anggota.length > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-200">
+                <p className="font-medium">⏳ Menunggu Konfirmasi</p>
+                <p className="mt-1">
+                  {anggota.length} dosen yang ditambahkan harus mengonfirmasi
+                  keterlibatan mereka. Kegiatan tidak akan muncul di daftar
+                  mereka sampai dikonfirmasi.
+                </p>
+              </div>
+            )}
+
             {/* Added Members */}
             {anggota.length > 0 && (
               <div className="space-y-2">
@@ -748,7 +864,10 @@ export function ActivityFormPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">Anggota</Badge>
+                      <Badge>Anggota</Badge>
+                      <Badge variant="outline" className="text-amber-600 border-amber-300">
+                        Menunggu
+                      </Badge>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -764,21 +883,35 @@ export function ActivityFormPage() {
           </CardContent>
         </Card>
 
-        {/* Section 3: Lampiran Bukti */}
+        {/* Section 4: Lampiran Bukti */}
         <Card>
           <CardHeader>
             <CardTitle>Lampiran Bukti Kegiatan</CardTitle>
             <CardDescription>
-              Lampirkan dokumen pendukung untuk memverifikasi kegiatan ini
+              {jenisBukti === 'bersama'
+                ? 'Upload satu dokumen bukti yang akan dipakai bersama oleh seluruh dosen yang terlibat'
+                : 'Setiap dosen yang terlibat mengunggah dokumen buktinya masing-masing'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {jenisBukti === 'bersama' && (
+              <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm text-blue-800 dark:text-blue-200">
+                <p className="font-medium">📄 Bukti bersama dipilih</p>
+                <p className="mt-1">
+                  Dokumen yang diupload akan otomatis terhubung ke seluruh dosen yang
+                  menyetujui keterlibatannya. Dosen lain dapat melihat dokumen ini
+                  (read-only).
+                </p>
+              </div>
+            )}
             {lampiran.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
                 <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>Belum ada dokumen bukti yang diupload</p>
                 <p className="text-sm mt-1">
-                  Setiap dosen yang terlibat harus mengupload dokumen bukti
+                  {jenisBukti === 'bersama'
+                    ? 'Upload satu dokumen yang akan menjadi bukti bersama'
+                    : 'Setiap dosen yang terlibat harus mengupload dokumen bukti'}
                 </p>
               </div>
             ) : (

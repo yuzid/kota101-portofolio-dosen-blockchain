@@ -39,11 +39,23 @@ import {
   Share2,
   History as HistoryIcon,
   Loader2,
+  Clock,
+  UserCheck,
+  UserX,
+  Ban,
+  Shield,
+  Upload,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
+import { useNotifications } from "../contexts/NotificationContext";
+import {
+  getKonfirmasi,
+  getKonfirmasiByKegiatan,
+  updateKonfirmasi,
+} from "../lib/kegiatanKonfirmasi";
 
 interface DosenBukti {
   id: string;
@@ -74,6 +86,7 @@ interface ActivityDetail {
   programStudi: string;
   dosenTerlibat: DosenBukti[];
   statusKelengkapan: "lengkap" | "tidak_lengkap";
+  jenisBukti?: "masing-masing" | "bersama";
 }
 
 interface ActivityLog {
@@ -94,6 +107,7 @@ export function ActivityDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { addNotification } = useNotifications();
   const [activeTab, setActiveTab] = useState("detail");
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -121,7 +135,9 @@ export function ActivityDetailPage() {
         setActivity(result.data);
       } else {
         toast.error(result.error || 'Gagal mengambil detail kegiatan');
-        navigate('/activities');
+        if (!result.error?.includes('Format') && !result.error?.includes('ditemukan')) {
+          navigate('/activities');
+        }
       }
     } catch (error) {
       toast.error('Terjadi kesalahan koneksi ke server');
@@ -162,6 +178,35 @@ export function ActivityDetailPage() {
     }
   };
 
+  const handleAccept = () => {
+    if (!id || !user?.id) return;
+    updateKonfirmasi(id, user.id, 'diterima');
+    toast.success("Anda menerima undangan kegiatan ini.");
+    addNotification({
+      type: 'approval',
+      title: 'Undangan Kegiatan Diterima',
+      description: `Anda menerima undangan kegiatan "${activity?.namaKegiatan}".`,
+      actor: user.name,
+      priority: 'medium',
+      category: 'Kegiatan',
+    });
+  };
+
+  const handleReject = () => {
+    if (!id || !user?.id) return;
+    updateKonfirmasi(id, user.id, 'ditolak');
+    toast.info("Anda menolak undangan kegiatan ini.");
+    addNotification({
+      type: 'approval',
+      title: 'Undangan Kegiatan Ditolak',
+      description: `Anda menolak undangan kegiatan "${activity?.namaKegiatan}".`,
+      actor: user.name,
+      priority: 'low',
+      category: 'Kegiatan',
+    });
+    navigate('/activities');
+  };
+
   if (isLoading) {
     return (
       <MainLayout title="Memuat Detail..." breadcrumbs={[{ label: "Kegiatan Tridharma", path: "/activities" }, { label: "Detail" }]}>
@@ -175,15 +220,44 @@ export function ActivityDetailPage() {
 
   if (!activity) return null;
 
-  // Check if current user is the pencatat
   const isPencatat = activity.dosenTerlibat.find(d => d.isPencatat)?.id === user?.id;
 
-  // Check if this is read-only view
   const isReadOnlyView =
     !isPencatat ||
     user?.roles?.includes("kaprodi") ||
     user?.roles?.includes("kajur") ||
     location.pathname.includes("/ami-recap/");
+
+  const konfirmasiSaya = user?.id ? getKonfirmasi(activity.id, user.id) : undefined;
+  const isUndangan = konfirmasiSaya?.status === 'menunggu' && !isPencatat;
+  const konfirmasiAll = getKonfirmasiByKegiatan(activity.id);
+  const jenisBukti = (activity as any).jenisBukti || 'masing-masing';
+
+  const getStatusKonfirmasiBadge = (dosenId: string) => {
+    const k = konfirmasiAll.find((k) => k.dosenId === dosenId);
+    if (!k || k.status === 'diterima') {
+      return (
+        <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
+          <UserCheck className="w-3 h-3 mr-1" />
+          Dikonfirmasi
+        </Badge>
+      );
+    }
+    if (k.status === 'menunggu') {
+      return (
+        <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+          <Clock className="w-3 h-3 mr-1" />
+          Menunggu
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-800">
+        <UserX className="w-3 h-3 mr-1" />
+        Ditolak
+      </Badge>
+    );
+  };
 
   const handleEdit = () => {
     navigate(`/activities/${id}/edit`);
@@ -191,7 +265,7 @@ export function ActivityDetailPage() {
 
   const handleDelete = async () => {
     if (!confirm(`Hapus kegiatan "${activity.namaKegiatan}"?`)) return;
-    
+
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/dosen/kegiatan/${id}`, {
         method: 'DELETE',
@@ -283,7 +357,7 @@ export function ActivityDetailPage() {
             Kembali
           </Button>
 
-          {!isReadOnlyView && (
+          {!isReadOnlyView && !isUndangan && (
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleShare}>
                 <Share2 className="w-4 h-4 mr-2" />
@@ -301,14 +375,55 @@ export function ActivityDetailPage() {
           )}
         </div>
 
+        {/* Undangan Banner */}
+        {isUndangan && (
+          <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Clock className="w-6 h-6 text-amber-600" />
+                  <div>
+                    <p className="font-semibold text-lg">Undangan Kegiatan</p>
+                    <p className="text-sm text-muted-foreground">
+                      Anda diundang oleh {activity.dosenTerlibat.find((d) => d.isPencatat)?.name || "pencatat"} untuk bergabung sebagai anggota kegiatan ini.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="default"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={handleAccept}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-1.5" />
+                    Terima
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950"
+                    onClick={handleReject}
+                  >
+                    <XCircle className="w-4 h-4 mr-1.5" />
+                    Tolak
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Header Card */}
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="space-y-2 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {getJenisBadge(activity.jenisTridharma)}
                   <Badge variant="secondary">{activity.kategori}</Badge>
+                  <Badge variant="outline" className="text-purple-600 border-purple-300">
+                    <Upload className="w-3 h-3 mr-1" />
+                    {jenisBukti === 'bersama' ? 'Bukti Bersama' : 'Bukti Masing-masing'}
+                  </Badge>
                 </div>
                 <h2 className="text-2xl font-bold">{activity.namaKegiatan}</h2>
                 <p className="text-sm text-muted-foreground">
@@ -382,6 +497,15 @@ export function ActivityDetailPage() {
                     </p>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Jenis Bukti
+                    </label>
+                    <p className="font-medium">
+                      {jenisBukti === 'bersama' ? 'Bukti Bersama' : 'Bukti diunggah masing-masing'}
+                    </p>
+                  </div>
+
                   {activity.sumberDana && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-muted-foreground">
@@ -420,126 +544,260 @@ export function ActivityDetailPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {activity.dosenTerlibat.map((dosen) => (
-                  <div
-                    key={dosen.id}
-                    className="border rounded-lg p-4 space-y-4"
-                  >
-                    {/* Dosen Info */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarFallback>
-                            {getInitials(dosen.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{dosen.name}</p>
-                            {dosen.isPencatat && (
-                              <Badge className="bg-blue-500">Pencatat</Badge>
-                            )}
-                            {dosen.isKetua && (
-                              <Badge className="bg-purple-500">Ketua</Badge>
-                            )}
-                            {!dosen.isKetua && (
-                              <Badge variant="secondary">Anggota</Badge>
+                {activity.dosenTerlibat.map((dosen) => {
+                  const kStatus = konfirmasiAll.find((k) => k.dosenId === dosen.id);
+                  const isDitolak = kStatus?.status === 'ditolak';
+                  return (
+                    <div
+                      key={dosen.id}
+                      className={`border rounded-lg p-4 space-y-4 ${isDitolak ? 'opacity-50' : ''}`}
+                    >
+                      {/* Dosen Info */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarFallback>
+                              {getInitials(dosen.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium">{dosen.name}</p>
+                              {dosen.isPencatat && (
+                                <Badge className="bg-blue-500">Pencatat</Badge>
+                              )}
+                              {dosen.isKetua && (
+                                <Badge className="bg-purple-500">Ketua</Badge>
+                              )}
+                              {!dosen.isPencatat && !dosen.isKetua && (
+                                <Badge variant="secondary">Anggota</Badge>
+                              )}
+                              {!dosen.isPencatat && getStatusKonfirmasiBadge(dosen.id)}
+                            </div>
+                            <p className="text-sm text-muted-foreground font-mono">
+                              {dosen.nidn ? `NIDN/NIP: ${dosen.nidn}` : 'Data identitas tidak tersedia'}
+                            </p>
+                          </div>
+                        </div>
+                        {jenisBukti === 'masing-masing' && !isDitolak && (
+                          <div className="text-right">
+                            {dosen.dokumen.length > 0 ? (
+                              <Badge className="bg-green-500">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                {dosen.dokumen.length} Dokumen
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-red-500">
+                                <AlertCircle className="w-3 h-3 mr-1" />
+                                Belum Upload
+                              </Badge>
                             )}
                           </div>
-                          <p className="text-sm text-muted-foreground font-mono">
-                            {dosen.nidn ? `NIDN/NIP: ${dosen.nidn}` : 'Data identitas tidak tersedia'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        {dosen.dokumen.length > 0 ? (
-                          <Badge className="bg-green-500">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            {dosen.dokumen.length} Dokumen
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-red-500">
-                            <AlertCircle className="w-3 h-3 mr-1" />
-                            Belum Upload
-                          </Badge>
+                        )}
+                        {isDitolak && (
+                          <div className="text-right">
+                            <Badge variant="outline" className="text-red-600 border-red-300">
+                              <Ban className="w-3 h-3 mr-1" />
+                              Tidak Terlibat
+                            </Badge>
+                          </div>
                         )}
                       </div>
+
+                      {/* Dokumen List — berbeda tampilan untuk masing-masing vs bersama */}
+                      {!isDitolak && (
+                        <>
+                          {jenisBukti === 'masing-masing' && dosen.dokumen.length > 0 && (
+                            <div className="space-y-2 pl-12">
+                              <label className="text-sm font-medium text-muted-foreground">
+                                Dokumen Bukti:
+                              </label>
+                              {dosen.dokumen.map((doc) => (
+                                <div
+                                  key={doc.id}
+                                  className="flex items-center justify-between p-3 border rounded-lg bg-muted/30"
+                                >
+                                  <div className="flex items-center gap-3 flex-1">
+                                    <FileText className="w-5 h-5 text-muted-foreground" />
+                                    <div>
+                                      <p className="font-medium text-sm">
+                                        {doc.name}
+                                      </p>
+                                      <div className="flex gap-2 mt-1">
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-xs"
+                                        >
+                                          {doc.jenis}
+                                        </Badge>
+                                        <span className="text-xs text-muted-foreground">
+                                          Upload:{" "}
+                                          {format(new Date(doc.tanggalUpload), "dd MMM yyyy", { locale: localeId })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {doc.hasHighlight && (
+                                      <Highlighter className="w-4 h-4 text-yellow-500" />
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        navigate(`/documents/${doc.id}/preview`, {
+                                          state: {
+                                            activityId: activity.id,
+                                            breadcrumbs: [
+                                              { label: "Beranda", path: "/dashboard" },
+                                              { label: "Kegiatan Tridharma", path: "/activities" },
+                                              { label: activity.namaKegiatan, path: `/activities/${id}` },
+                                              { label: doc.name },
+                                            ],
+                                          },
+                                        })
+                                      }
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {jenisBukti === 'masing-masing' && dosen.dokumen.length === 0 && dosen.isPencatat && (
+                            <div className="pl-12 text-sm text-muted-foreground italic">
+                              Upload dokumen bukti untuk melengkapi kegiatan ini.
+                            </div>
+                          )}
+
+                          {jenisBukti === 'masing-masing' && dosen.dokumen.length === 0 && !dosen.isPencatat && (
+                            <div className="pl-12 text-sm text-muted-foreground italic">
+                              Dosen ini belum mengupload dokumen bukti.
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Bukti Bersama Section */}
+                {jenisBukti === 'bersama' && (
+                  <div className="border rounded-lg p-4 bg-blue-50/50 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-blue-600" />
+                        <h4 className="font-semibold">Dokumen Bukti Bersama</h4>
+                        <Badge variant="outline" className="text-blue-600 border-blue-300">
+                          <Upload className="w-3 h-3 mr-1" />
+                          Bukti Bersama
+                        </Badge>
+                      </div>
+                      {isPencatat && (
+                        <Badge className="bg-green-500">
+                          <Shield className="w-3 h-3 mr-1" />
+                          Uploader
+                        </Badge>
+                      )}
                     </div>
 
-                    {/* Dokumen List */}
-                    {dosen.dokumen.length > 0 ? (
-                      <div className="space-y-2 pl-12">
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Dokumen Bukti:
-                        </label>
-                        {dosen.dokumen.map((doc) => (
-                          <div
-                            key={doc.id}
-                            className="flex items-center justify-between p-3 border rounded-lg bg-muted/30"
-                          >
-                            <div className="flex items-center gap-3 flex-1">
-                              <FileText className="w-5 h-5 text-muted-foreground" />
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {doc.name}
-                                </p>
-                                <div className="flex gap-2 mt-1">
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs"
+                    {/* Shared documents for bersama */}
+                    {(() => {
+                      const allDocs = activity.dosenTerlibat.flatMap((d) =>
+                        d.dokumen.map((doc) => ({ ...doc, dosenNama: d.name, dosenId: d.id }))
+                      );
+                      const uniqueDocs = Array.from(
+                        new Map(allDocs.map((doc) => [doc.id, doc])).values()
+                      );
+
+                      return uniqueDocs.length > 0 ? (
+                        <div className="space-y-2">
+                          {uniqueDocs.map((doc) => {
+                            const uploader = activity.dosenTerlibat.find(
+                              (d) => d.id === doc.dosenId
+                            );
+                            const canEdit = isPencatat || user?.roles?.includes('administrator');
+                            return (
+                              <div
+                                key={doc.id}
+                                className="flex items-center justify-between p-3 border rounded-lg bg-background"
+                              >
+                                <div className="flex items-center gap-3 flex-1">
+                                  <FileText className="w-5 h-5 text-muted-foreground" />
+                                  <div>
+                                    <p className="font-medium text-sm">
+                                      {doc.name}
+                                    </p>
+                                    <div className="flex gap-2 mt-1">
+                                      <Badge variant="secondary" className="text-xs">
+                                        {doc.jenis}
+                                      </Badge>
+                                      <span className="text-xs text-muted-foreground">
+                                        Upload oleh: {doc.dosenNama}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {format(new Date(doc.tanggalUpload), "dd MMM yyyy", { locale: localeId })}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Dokumen ini terhubung ke seluruh dosen yang menyetujui keterlibatannya.
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {doc.hasHighlight && (
+                                    <Highlighter className="w-4 h-4 text-yellow-500" />
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      navigate(`/documents/${doc.id}/preview`, {
+                                        state: {
+                                          activityId: activity.id,
+                                          breadcrumbs: [
+                                            { label: "Beranda", path: "/dashboard" },
+                                            { label: "Kegiatan Tridharma", path: "/activities" },
+                                            { label: activity.namaKegiatan, path: `/activities/${id}` },
+                                            { label: doc.name },
+                                          ],
+                                        },
+                                      })
+                                    }
                                   >
-                                    {doc.jenis}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground">
-                                    Upload:{" "}
-                                    {format(new Date(doc.tanggalUpload), "dd MMM yyyy", { locale: localeId })}
-                                  </span>
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                  {canEdit && (
+                                    <Button variant="ghost" size="sm" className="text-destructive">
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {doc.hasHighlight && (
-                                <Highlighter className="w-4 h-4 text-yellow-500" />
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  navigate(`/documents/${doc.id}/preview`, {
-                                    state: {
-                                      activityId: activity.id,
-                                      breadcrumbs: [
-                                        {
-                                          label: "Beranda",
-                                          path: "/dashboard",
-                                        },
-                                        {
-                                          label: "Kegiatan Tridharma",
-                                          path: "/activities",
-                                        },
-                                        {
-                                          label: activity.namaKegiatan,
-                                          path: `/activities/${id}`,
-                                        },
-                                        { label: doc.name },
-                                      ],
-                                    },
-                                  })
-                                }
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="pl-12 text-sm text-muted-foreground italic">
-                        Dosen ini belum mengupload dokumen bukti
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground border-2 border-dashed rounded-lg bg-background">
+                          <Upload className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                          <p>Belum ada dokumen bukti bersama</p>
+                          {isPencatat && (
+                            <p className="text-sm mt-1">
+                              Upload satu dokumen yang akan menjadi bukti bersama
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1">
+                      <Shield className="w-3 h-3" />
+                      Hanya uploader/pencatat yang dapat mengedit atau menghapus dokumen bukti bersama. Dosen lain hanya dapat melihat.
+                    </p>
                   </div>
-                ))}
+                )}
               </CardContent>
             </Card>
 
@@ -568,13 +826,14 @@ export function ActivityDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      Dosen Belum Upload
+                      {jenisBukti === 'bersama' ? 'Dosen Dikonfirmasi' : 'Dosen Belum Upload'}
                     </p>
-                    <p className="text-2xl font-bold text-red-600">
-                      {
-                        activity.dosenTerlibat.filter(
-                          (d) => d.dokumen.length === 0
-                        ).length
+                    <p className="text-2xl font-bold text-green-600">
+                      {jenisBukti === 'bersama'
+                        ? konfirmasiAll.filter((k) => k.status === 'diterima' || !k).length
+                        : activity.dosenTerlibat.filter(
+                            (d) => d.dokumen.length === 0
+                          ).length
                       }
                     </p>
                   </div>
